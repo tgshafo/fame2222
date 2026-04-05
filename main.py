@@ -67,9 +67,6 @@ class Database:
             status TEXT DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS admins_table (
-            user_id INTEGER PRIMARY KEY
-        )''')
         conn.commit()
         conn.close()
         logger.info("Database initialized")
@@ -143,28 +140,6 @@ class Database:
         conn.commit()
         conn.close()
         return complaint_id
-    
-    def add_admin(self, admin_id):
-        conn = sqlite3.connect(self.db_file, timeout=10)
-        cursor = conn.cursor()
-        cursor.execute('INSERT OR IGNORE INTO admins_table VALUES (?)', (admin_id,))
-        conn.commit()
-        conn.close()
-    
-    def remove_admin(self, admin_id):
-        conn = sqlite3.connect(self.db_file, timeout=10)
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM admins_table WHERE user_id = ?', (admin_id,))
-        conn.commit()
-        conn.close()
-    
-    def get_all_admins(self):
-        conn = sqlite3.connect(self.db_file, timeout=10)
-        cursor = conn.cursor()
-        cursor.execute('SELECT user_id FROM admins_table')
-        admins = [row[0] for row in cursor.fetchall()]
-        conn.close()
-        return admins
 
 db = Database()
 
@@ -199,9 +174,9 @@ def get_categories_keyboard():
 
 def get_app_view_keyboard(app_id):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Принять", callback_data=f"accept_{app_id}"),
-         InlineKeyboardButton("❌ Отклонить", callback_data=f"reject_{app_id}")],
-        [InlineKeyboardButton("📝 Дополнить", callback_data=f"note_{app_id}")]
+        [InlineKeyboardButton("✅ ПРИНЯТЬ", callback_data=f"accept_{app_id}"),
+         InlineKeyboardButton("❌ ОТКЛОНИТЬ", callback_data=f"reject_{app_id}")],
+        [InlineKeyboardButton("📝 ДОПОЛНИТЬ", callback_data=f"note_{app_id}")]
     ])
 
 def get_apps_list_keyboard(apps):
@@ -250,7 +225,7 @@ def format_application(app):
 ⏰ <b>Дата:</b> {app[13]}
 """
 
-# ==================== ОБРАБОТЧИКИ ====================
+# ==================== ОСНОВНЫЕ ОБРАБОТЧИКИ ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     context.user_data.clear()
@@ -263,11 +238,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if user_id == OWNER_ID:
-        await update.message.reply_text("👑 Владелец", reply_markup=get_owner_keyboard())
+        await update.message.reply_text("👑 Добро пожаловать, Владелец!", reply_markup=get_owner_keyboard())
     elif user_id in ADMINS:
-        await update.message.reply_text("🛡️ Админ", reply_markup=get_admin_keyboard())
+        await update.message.reply_text("🛡️ Добро пожаловать, Админ!", reply_markup=get_admin_keyboard())
     else:
-        await update.message.reply_text("✨ Добро пожаловать!", reply_markup=get_user_keyboard())
+        await update.message.reply_text("✨ Добро пожаловать в Fame List Bot!", reply_markup=get_user_keyboard())
 
 async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📜 ПРАВИЛА:\n1. Без оскорблений\n2. Без спама\n3. За скам - бан")
@@ -358,7 +333,7 @@ async def app_acquaintances(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     return ConversationHandler.END
 
-# ==================== ПРОСМОТР ЗАЯВОК ====================
+# ==================== АДМИНКА ====================
 async def show_applications(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in ADMINS and user_id != OWNER_ID:
@@ -409,10 +384,6 @@ async def accept_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("❌ Заявка уже обработана!")
         return
     
-    if app[1] == user_id:
-        await query.edit_message_text("❌ Нельзя принять свою заявку!")
-        return
-    
     db.update_application_status(app_id, 'accepted', user_id)
     
     try:
@@ -450,7 +421,6 @@ async def reject_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def add_note_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
     app_id = int(query.data.split("_")[2])
     context.user_data['note_app_id'] = app_id
     await query.edit_message_text("📝 Введите заметку:")
@@ -461,7 +431,7 @@ async def add_note_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app_id = context.user_data.get('note_app_id')
     if app_id:
         db.update_application_note(app_id, note)
-        await update.message.reply_text(f"✅ Заметка для заявки #{app_id} сохранена!")
+        await update.message.reply_text(f"✅ Заметка для заявки #{app_id} сохранена!", reply_markup=get_admin_keyboard())
     context.user_data.clear()
     return ConversationHandler.END
 
@@ -476,10 +446,9 @@ async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📭 История пуста.")
         return
     
-    text = "📜 ИСТОРИЯ:\n\n"
+    text = "📜 ИСТОРИЯ ЗАЯВОК:\n\n"
     for h in history[:20]:
         text += f"👤 {h[3]} | #{h[0]} | Принял: {h[5]}\n"
-    
     await update.message.reply_text(text)
 
 async def manage_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -487,14 +456,12 @@ async def manage_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id != OWNER_ID:
         await update.message.reply_text("⛔ Только для владельца!")
         return
-    
     await update.message.reply_text("Отправьте ID пользователя для добавления в админы:")
     return ADD_ADMIN_STATE
 
 async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         new_admin_id = int(update.message.text)
-        db.add_admin(new_admin_id)
         ADMINS.append(new_admin_id)
         await update.message.reply_text(f"✅ Админ {new_admin_id} добавлен!", reply_markup=get_owner_keyboard())
     except:
@@ -537,7 +504,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ==================== MAIN ====================
 def main():
-    print("🚀 ЗАПУСК БОТА...")
+    print("🚀 БОТ ЗАПУЩЕН!")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
@@ -545,7 +512,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("cancel", cancel))
     
-    # Кнопки
+    # Кнопки меню
     app.add_handler(MessageHandler(filters.Regex('^📋 Правила$'), rules))
     app.add_handler(MessageHandler(filters.Regex('^👥 Модерация$'), moderation_info))
     app.add_handler(MessageHandler(filters.Regex('^📊 Заявки$'), show_applications))
@@ -581,7 +548,7 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     ))
     
-    # Дополнить заметку
+    # Заметки
     app.add_handler(ConversationHandler(
         entry_points=[CallbackQueryHandler(add_note_start, pattern="^note_")],
         states={ADD_NOTE_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_note_save)]},
@@ -600,7 +567,7 @@ def main():
     app.add_handler(CallbackQueryHandler(accept_app, pattern="^accept_"))
     app.add_handler(CallbackQueryHandler(reject_app, pattern="^reject_"))
     
-    print("✅ Бот запущен!")
+    print("✅ Бот готов к работе!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
