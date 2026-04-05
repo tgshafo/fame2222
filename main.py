@@ -15,7 +15,7 @@ CHECK_SUBSCRIPTION = True
 ADMINS = [287265398]
 CATEGORIES = ['Медийка', 'Высокий фейм', 'Средний фейм', 'Низкий фейм', 'Кодер']
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # ==================== БАЗА ДАННЫХ ====================
@@ -66,6 +66,9 @@ class Database:
             evidence TEXT,
             status TEXT DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS admins_table (
+            user_id INTEGER PRIMARY KEY
         )''')
         conn.commit()
         conn.close()
@@ -136,10 +139,30 @@ class Database:
         cursor = conn.cursor()
         cursor.execute('INSERT INTO complaints (from_user_id, on_user_id, on_username, reason, evidence) VALUES (?, ?, ?, ?, ?)',
                       (from_user_id, on_user_id, on_username, reason, evidence))
-        complaint_id = cursor.lastrowid
         conn.commit()
         conn.close()
-        return complaint_id
+    
+    def add_admin(self, admin_id):
+        conn = sqlite3.connect(self.db_file, timeout=10)
+        cursor = conn.cursor()
+        cursor.execute('INSERT OR IGNORE INTO admins_table VALUES (?)', (admin_id,))
+        conn.commit()
+        conn.close()
+    
+    def remove_admin(self, admin_id):
+        conn = sqlite3.connect(self.db_file, timeout=10)
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM admins_table WHERE user_id = ?', (admin_id,))
+        conn.commit()
+        conn.close()
+    
+    def get_all_admins(self):
+        conn = sqlite3.connect(self.db_file, timeout=10)
+        cursor = conn.cursor()
+        cursor.execute('SELECT user_id FROM admins_table')
+        admins = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return admins
 
 db = Database()
 
@@ -222,7 +245,9 @@ def format_application(app):
 📈 <b>Как поднимал фейм:</b> {app[11]}
 👥 <b>Знакомства:</b> {app[12]}
 
-⏰ <b>Дата:</b> {app[13]}
+📝 <b>Заметка админа:</b> {app[16] or 'Нет'}
+
+⏰ <b>Дата подачи:</b> {app[13]}
 """
 
 # ==================== ОСНОВНЫЕ ОБРАБОТЧИКИ ====================
@@ -232,7 +257,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not await check_subscription(context.bot, user_id):
         await update.message.reply_text(
-            f"❌ <b>Подпишись на канал!</b>\n\n👉 <a href='{CHANNEL_LINK}'>ПОДПИСАТЬСЯ</a>",
+            f"❌ <b>Подпишись на канал!</b>\n\n👉 <a href='{CHANNEL_LINK}'>ПОДПИСАТЬСЯ</a>\n\nПосле подписки нажми /start",
             parse_mode=ParseMode.HTML, disable_web_page_preview=True
         )
         return
@@ -245,10 +270,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✨ Добро пожаловать в Fame List Bot!", reply_markup=get_user_keyboard())
 
 async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📜 ПРАВИЛА:\n1. Без оскорблений\n2. Без спама\n3. За скам - бан")
+    await update.message.reply_text(
+        "📜 <b>ПРАВИЛА ФЕЙМ-ЛИСТА</b>\n\n"
+        "1️⃣ Заполняй анкету честно и полностью\n"
+        "2️⃣ Запрещены оскорбления и токсичность\n"
+        "3️⃣ Запрещен спам и реклама\n"
+        "4️⃣ За скам/мошенничество - моментальный бан\n"
+        "5️⃣ Решение модераторов окончательное\n\n"
+        "⚠️ Нарушение правил = блокировка!",
+        parse_mode=ParseMode.HTML
+    )
 
 async def moderation_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👥 Модераторы проверяют заявки 24-48 часов")
+    await update.message.reply_text(
+        "👥 <b>МОДЕРАЦИЯ ФЕЙМ-ЛИСТА</b>\n\n"
+        "📌 Модераторы проверяют заявки в течение 24-48 часов\n\n"
+        "📌 Связь с модерацией: @ваш_чат\n\n"
+        "📌 Жалобы через кнопку ⚠️ Пожаловаться",
+        parse_mode=ParseMode.HTML
+    )
 
 # ==================== ПОДАЧА ЗАЯВКИ ====================
 async def start_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -257,7 +297,7 @@ async def start_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if app[1] == user_id:
             await update.message.reply_text("❌ У вас уже есть активная заявка!")
             return
-    await update.message.reply_text("📝 Отправьте ФОТО:")
+    await update.message.reply_text("📝 Шаг 1/10: Отправьте ваше ФОТО (аватарку):")
     return APP_AVATAR
 
 async def app_avatar(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -265,51 +305,51 @@ async def app_avatar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Отправьте фото!")
         return APP_AVATAR
     context.user_data['avatar'] = update.message.photo[-1].file_id
-    await update.message.reply_text("✅ Введите НИКНЕЙМ:")
+    await update.message.reply_text("✅ Шаг 2/10: Введите ваш НИКНЕЙМ:")
     return APP_NICKNAME
 
 async def app_nickname(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['nickname'] = update.message.text
-    await update.message.reply_text("✅ Выберите КАТЕГОРИЮ:", reply_markup=get_categories_keyboard())
+    await update.message.reply_text("✅ Шаг 3/10: Выберите КАТЕГОРИЮ:", reply_markup=get_categories_keyboard())
     return APP_CATEGORY
 
 async def app_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     context.user_data['category'] = query.data.replace("cat_", "")
-    await query.edit_message_text("✅ Введите ПРОЕКТ:")
+    await query.edit_message_text(f"✅ Шаг 4/10: Введите название вашего ПРОЕКТА:")
     return APP_PROJECT
 
 async def app_project(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['project'] = update.message.text
-    await update.message.reply_text("✅ Ссылка на ЧАТ (или '-'):")
+    await update.message.reply_text("✅ Шаг 5/10: Ссылка на ЧАТ (или '-' для пропуска):")
     return APP_CHAT
 
 async def app_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     context.user_data['chat'] = None if text == '-' else text
-    await update.message.reply_text("✅ Год в КМ?")
+    await update.message.reply_text("✅ Шаг 6/10: С какого года в КМ? (например: 2020):")
     return APP_KM_YEAR
 
 async def app_km_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['km_year'] = update.message.text
-    await update.message.reply_text("✅ Участвовали в ВК или ДС КМ?")
+    await update.message.reply_text("✅ Шаг 7/10: Участвовали ли вы в ВК или ДС КМ?")
     return APP_PARTICIPATED
 
 async def app_participated(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['participated'] = update.message.text
-    await update.message.reply_text("✅ Почему хотите попасть? (или '-'):")
+    await update.message.reply_text("✅ Шаг 8/10: Почему вы хотите попасть в фейм-лист? (или '-'):")
     return APP_REASON
 
 async def app_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     context.user_data['reason'] = None if text == '-' else text
-    await update.message.reply_text("✅ Как поднимали фейм?")
+    await update.message.reply_text("✅ Шаг 9/10: Как вы поднимали фейм?")
     return APP_FAME_METHOD
 
 async def app_fame_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['fame_method'] = update.message.text
-    await update.message.reply_text("✅ С кем знакомы и кто подтвердит?")
+    await update.message.reply_text("✅ Шаг 10/10: С какими личностями знакомы и кто может подтвердить?")
     return APP_ACQUAINTANCES
 
 async def app_acquaintances(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -322,11 +362,11 @@ async def app_acquaintances(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data.get('reason'), data['fame_method'], update.message.text
     )
     
-    await update.message.reply_text(f"✅ Заявка #{app_id} отправлена!", reply_markup=get_user_keyboard())
+    await update.message.reply_text(f"✅ Заявка #{app_id} успешно отправлена! Ожидайте решения модерации.", reply_markup=get_user_keyboard())
     
     for admin_id in ADMINS:
         try:
-            await context.bot.send_message(admin_id, f"🔔 Новая заявка #{app_id} от {data['nickname']}")
+            await context.bot.send_message(admin_id, f"🔔 НОВАЯ ЗАЯВКА #{app_id}\nОт: {data['nickname']}\nКатегория: {data['category']}")
         except:
             pass
     
@@ -345,9 +385,14 @@ async def show_applications(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📭 Нет активных заявок.")
         return
     
+    text = "📊 <b>ТЕКУЩИЕ ЗАЯВКИ</b>\n\n"
+    for app in apps:
+        text += f"👤 {app[3]} | #{app[0]}\n"
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+    
     kb = get_apps_list_keyboard(apps)
     if kb:
-        await update.message.reply_text("📊 Список заявок:", reply_markup=kb)
+        await update.message.reply_text("Выберите заявку для просмотра:", reply_markup=kb)
 
 async def view_application(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -357,16 +402,18 @@ async def view_application(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app = db.get_application_by_id(app_id)
     
     if not app:
-        await query.edit_message_text("❌ Заявка не найдена!")
+        await query.message.reply_text("❌ Заявка не найдена!")
+        await query.message.delete()
         return
     
     text = format_application(app)
     
     if app[4]:
         await query.message.reply_photo(photo=app[4], caption=text, parse_mode=ParseMode.HTML, reply_markup=get_app_view_keyboard(app_id))
-        await query.delete_message()
     else:
-        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=get_app_view_keyboard(app_id))
+        await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=get_app_view_keyboard(app_id))
+    
+    await query.message.delete()
 
 async def accept_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -374,24 +421,29 @@ async def accept_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_id = query.from_user.id
     if user_id not in ADMINS and user_id != OWNER_ID:
-        await query.edit_message_text("⛔ Нет прав!")
+        await query.message.reply_text("⛔ Нет прав!")
         return
     
     app_id = int(query.data.split("_")[1])
     app = db.get_application_by_id(app_id)
     
     if not app or app[14] != 'pending':
-        await query.edit_message_text("❌ Заявка уже обработана!")
+        await query.message.reply_text("❌ Заявка уже обработана!")
+        return
+    
+    if app[1] == user_id:
+        await query.message.reply_text("❌ Нельзя принять свою заявку!")
         return
     
     db.update_application_status(app_id, 'accepted', user_id)
     
     try:
-        await context.bot.send_message(app[1], f"✅ ЗАЯВКА #{app_id} ПРИНЯТА! Добро пожаловать!")
+        await context.bot.send_message(app[1], f"✅ ЗАЯВКА #{app_id} ПРИНЯТА!\n\nДобро пожаловать в фейм-лист! 🎉")
     except:
         pass
     
-    await query.edit_message_text(f"✅ Заявка #{app_id} ПРИНЯТА!")
+    await query.message.reply_text(f"✅ Заявка #{app_id} ПРИНЯТА!")
+    await query.message.delete()
 
 async def reject_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -399,31 +451,33 @@ async def reject_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_id = query.from_user.id
     if user_id not in ADMINS and user_id != OWNER_ID:
-        await query.edit_message_text("⛔ Нет прав!")
+        await query.message.reply_text("⛔ Нет прав!")
         return
     
     app_id = int(query.data.split("_")[1])
     app = db.get_application_by_id(app_id)
     
     if not app or app[14] != 'pending':
-        await query.edit_message_text("❌ Заявка уже обработана!")
+        await query.message.reply_text("❌ Заявка уже обработана!")
         return
     
     db.update_application_status(app_id, 'rejected', user_id)
     
     try:
-        await context.bot.send_message(app[1], f"❌ ЗАЯВКА #{app_id} ОТКЛОНЕНА")
+        await context.bot.send_message(app[1], f"❌ ЗАЯВКА #{app_id} ОТКЛОНЕНА\n\nВы можете подать новую заявку через 14 дней.")
     except:
         pass
     
-    await query.edit_message_text(f"❌ Заявка #{app_id} ОТКЛОНЕНА!")
+    await query.message.reply_text(f"❌ Заявка #{app_id} ОТКЛОНЕНА!")
+    await query.message.delete()
 
 async def add_note_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    
     app_id = int(query.data.split("_")[2])
     context.user_data['note_app_id'] = app_id
-    await query.edit_message_text("📝 Введите заметку:")
+    await query.message.reply_text("📝 Введите заметку для этой заявки:")
     return ADD_NOTE_STATE
 
 async def add_note_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -438,7 +492,7 @@ async def add_note_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != OWNER_ID:
-        await update.message.reply_text("⛔ Только для владельца!")
+        await update.message.reply_text("⛔ Только владелец может просматривать историю!")
         return
     
     history = db.get_history_applications()
@@ -446,22 +500,31 @@ async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📭 История пуста.")
         return
     
-    text = "📜 ИСТОРИЯ ЗАЯВОК:\n\n"
+    text = "📜 <b>ИСТОРИЯ ЗАЯВОК</b>\n\n"
     for h in history[:20]:
         text += f"👤 {h[3]} | #{h[0]} | Принял: {h[5]}\n"
-    await update.message.reply_text(text)
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
 async def manage_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != OWNER_ID:
         await update.message.reply_text("⛔ Только для владельца!")
         return
-    await update.message.reply_text("Отправьте ID пользователя для добавления в админы:")
+    
+    admins = db.get_all_admins()
+    text = "👑 <b>Управление админами</b>\n\n"
+    text += "<b>Текущие админы:</b>\n"
+    for admin in admins:
+        text += f"• `{admin}`\n"
+    text += "\nОтправьте ID пользователя, чтобы добавить админа:"
+    
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
     return ADD_ADMIN_STATE
 
 async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         new_admin_id = int(update.message.text)
+        db.add_admin(new_admin_id)
         ADMINS.append(new_admin_id)
         await update.message.reply_text(f"✅ Админ {new_admin_id} добавлен!", reply_markup=get_owner_keyboard())
     except:
@@ -469,24 +532,32 @@ async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     return ConversationHandler.END
 
+# ==================== ЖАЛОБЫ ====================
 async def handle_complaint(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⚠️ Укажите username нарушителя:")
+    await update.message.reply_text("⚠️ Укажите username или ID нарушителя:")
     return COMPLAINT_USER
 
 async def complaint_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['complaint_on'] = update.message.text
-    await update.message.reply_text("📝 Причина жалобы:")
+    await update.message.reply_text("📝 Напишите причину жалобы:")
     return COMPLAINT_REASON
 
 async def complaint_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['complaint_reason'] = update.message.text
-    await update.message.reply_text("🔗 Доказательства (или '-'):")
+    await update.message.reply_text("🔗 Пришлите доказательства (или '-'):")
     return COMPLAINT_EVIDENCE
 
 async def complaint_evidence(update: Update, context: ContextTypes.DEFAULT_TYPE):
     evidence = update.message.text if update.message.text != '-' else None
     db.add_complaint(update.effective_user.id, 0, context.user_data['complaint_on'], context.user_data['complaint_reason'], evidence)
-    await update.message.reply_text("✅ Жалоба отправлена!", reply_markup=get_user_keyboard())
+    await update.message.reply_text("✅ Жалоба отправлена модераторам!", reply_markup=get_user_keyboard())
+    
+    for admin_id in ADMINS:
+        try:
+            await context.bot.send_message(admin_id, f"⚠️ НОВАЯ ЖАЛОБА\nНа: {context.user_data['complaint_on']}\nПричина: {context.user_data['complaint_reason']}")
+        except:
+            pass
+    
     context.user_data.clear()
     return ConversationHandler.END
 
@@ -499,12 +570,13 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kb = get_admin_keyboard()
     else:
         kb = get_user_keyboard()
-    await update.message.reply_text("❌ Отменено.", reply_markup=kb)
+    await update.message.reply_text("❌ Действие отменено.", reply_markup=kb)
     return ConversationHandler.END
 
 # ==================== MAIN ====================
 def main():
     print("🚀 БОТ ЗАПУЩЕН!")
+    print("=" * 50)
     
     app = Application.builder().token(BOT_TOKEN).build()
     
@@ -548,7 +620,7 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     ))
     
-    # Заметки
+    # Заметки для заявок
     app.add_handler(ConversationHandler(
         entry_points=[CallbackQueryHandler(add_note_start, pattern="^note_")],
         states={ADD_NOTE_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_note_save)]},
@@ -566,8 +638,12 @@ def main():
     app.add_handler(CallbackQueryHandler(view_application, pattern="^view_"))
     app.add_handler(CallbackQueryHandler(accept_app, pattern="^accept_"))
     app.add_handler(CallbackQueryHandler(reject_app, pattern="^reject_"))
+    app.add_handler(CallbackQueryHandler(add_note_start, pattern="^note_"))
     
+    print("✅ Все обработчики загружены")
     print("✅ Бот готов к работе!")
+    print("=" * 50)
+    
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
