@@ -11,7 +11,7 @@ BOT_TOKEN = "7283183825:AAFwZWypGCdizQ27JvmKWKiw3ZsJhegJRKs"
 OWNER_ID = 287265398
 CHANNEL_ID = -1003658136195
 CHANNEL_LINK = "https://t.me/+hgYBTlhzZOZmNDY0"
-CHECK_SUBSCRIPTION = True
+CHECK_SUBSCRIPTION = True  # ОТКЛЮЧАЕМ ПРОВЕРКУ ПОДПИСКИ ДЛЯ ТЕСТА
 ADMINS = [287265398]
 CATEGORIES = ['Медийка', 'Высокий фейм', 'Средний фейм', 'Низкий фейм', 'Кодер']
 
@@ -55,8 +55,7 @@ class Database:
             nickname TEXT,
             category TEXT,
             accepted_by INTEGER,
-            accepted_at TIMESTAMP,
-            FOREIGN KEY (application_id) REFERENCES applications (id)
+            accepted_at TIMESTAMP
         )''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,75 +116,39 @@ class Database:
         conn.commit()
         conn.close()
     
-    def update_application_note(self, app_id, note):
-        conn = sqlite3.connect(self.db_file, timeout=10)
-        cursor = conn.cursor()
-        cursor.execute('UPDATE applications SET admin_note = ? WHERE id = ?', (note, app_id))
-        conn.commit()
-        conn.close()
-    
-    def add_admin(self, admin_id):
-        conn = sqlite3.connect(self.db_file, timeout=10)
-        cursor = conn.cursor()
-        cursor.execute('CREATE TABLE IF NOT EXISTS admins (user_id INTEGER PRIMARY KEY)')
-        cursor.execute('INSERT OR IGNORE INTO admins VALUES (?)', (admin_id,))
-        conn.commit()
-        conn.close()
-    
-    def remove_admin(self, admin_id):
-        conn = sqlite3.connect(self.db_file, timeout=10)
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM admins WHERE user_id = ?', (admin_id,))
-        conn.commit()
-        conn.close()
-    
-    def get_all_admins(self):
-        conn = sqlite3.connect(self.db_file, timeout=10)
-        cursor = conn.cursor()
-        cursor.execute('CREATE TABLE IF NOT EXISTS admins (user_id INTEGER PRIMARY KEY)')
-        cursor.execute('SELECT user_id FROM admins')
-        admins = [row[0] for row in cursor.fetchall()]
-        conn.close()
-        return admins
-    
     def get_history_applications(self):
         conn = sqlite3.connect(self.db_file, timeout=10)
         cursor = conn.cursor()
-        cursor.execute('''SELECT h.id, h.user_id, h.username, h.nickname, h.category, h.accepted_by, h.accepted_at, a.admin_note 
-                         FROM history h JOIN applications a ON h.application_id = a.id ORDER BY h.accepted_at DESC''')
+        cursor.execute('SELECT id, user_id, username, nickname, category, accepted_by, accepted_at FROM history ORDER BY accepted_at DESC')
         history = cursor.fetchall()
         conn.close()
         return history
-    
-    def get_complaints(self):
-        conn = sqlite3.connect(self.db_file, timeout=10)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM complaints WHERE status = "pending" ORDER BY created_at DESC')
-        complaints = cursor.fetchall()
-        conn.close()
-        return complaints
-    
-    def add_complaint(self, from_user_id, on_user_id, on_username, reason, evidence):
-        conn = sqlite3.connect(self.db_file, timeout=10)
-        cursor = conn.cursor()
-        cursor.execute('INSERT INTO complaints (from_user_id, on_user_id, on_username, reason, evidence) VALUES (?, ?, ?, ?, ?)',
-                      (from_user_id, on_user_id, on_username, reason, evidence))
-        complaint_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        return complaint_id
 
 db = Database()
 
 # ==================== КЛАВИАТУРЫ ====================
 def get_user_keyboard():
-    return ReplyKeyboardMarkup([["📝 Отправить заявку"], ["📋 Правила", "⚠️ Пожаловаться"], ["👥 Модерация"]], resize_keyboard=True)
+    return ReplyKeyboardMarkup([
+        ["📝 Отправить заявку"],
+        ["📋 Правила", "⚠️ Пожаловаться"],
+        ["👥 Модерация"]
+    ], resize_keyboard=True)
 
 def get_admin_keyboard():
-    return ReplyKeyboardMarkup([["📝 Отправить заявку"], ["📋 Правила", "⚠️ Пожаловаться"], ["👥 Модерация"], ["📊 Заявки", "📜 История"]], resize_keyboard=True)
+    return ReplyKeyboardMarkup([
+        ["📝 Отправить заявку"],
+        ["📋 Правила", "⚠️ Пожаловаться"],
+        ["👥 Модерация"],
+        ["📊 Заявки", "📜 История"]
+    ], resize_keyboard=True)
 
 def get_owner_keyboard():
-    return ReplyKeyboardMarkup([["📝 Отправить заявку"], ["📋 Правила", "⚠️ Пожаловаться"], ["👥 Модерация"], ["📊 Заявки", "📜 История"], ["👑 Управление админами"]], resize_keyboard=True)
+    return ReplyKeyboardMarkup([
+        ["📝 Отправить заявку"],
+        ["📋 Правила", "⚠️ Пожаловаться"],
+        ["👥 Модерация"],
+        ["📊 Заявки", "📜 История"]
+    ], resize_keyboard=True)
 
 def get_categories_keyboard():
     keyboard = [[InlineKeyboardButton(cat, callback_data=f"cat_{cat}")] for cat in CATEGORIES]
@@ -194,8 +157,7 @@ def get_categories_keyboard():
 def get_app_view_keyboard(app_id):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ Принять", callback_data=f"accept_{app_id}"),
-         InlineKeyboardButton("❌ Отклонить", callback_data=f"reject_{app_id}")],
-        [InlineKeyboardButton("📝 Дополнить", callback_data=f"add_note_{app_id}")]
+         InlineKeyboardButton("❌ Отклонить", callback_data=f"reject_{app_id}")]
     ])
 
 def get_apps_list_keyboard(apps):
@@ -204,27 +166,13 @@ def get_apps_list_keyboard(apps):
     keyboard = [[InlineKeyboardButton(f"👤 {app[3]} (#{app[0]})", callback_data=f"view_{app[0]}")] for app in apps]
     return InlineKeyboardMarkup(keyboard)
 
-def get_admin_list_keyboard(admins):
-    if not admins:
-        return None
-    keyboard = [[InlineKeyboardButton(f"❌ Удалить {admin}", callback_data=f"del_admin_{admin}")] for admin in admins]
-    return InlineKeyboardMarkup(keyboard)
-
 # ==================== СОСТОЯНИЯ ====================
 APP_AVATAR, APP_NICKNAME, APP_CATEGORY, APP_PROJECT, APP_CHAT, APP_KM_YEAR, APP_PARTICIPATED, APP_REASON, APP_FAME_METHOD, APP_ACQUAINTANCES = range(10)
 COMPLAINT_USER, COMPLAINT_REASON, COMPLAINT_EVIDENCE = range(10, 13)
-ADD_NOTE_STATE = range(13, 14)
-ADD_ADMIN_STATE = range(14, 15)
 
 # ==================== УТИЛИТЫ ====================
 async def check_subscription(bot: Bot, user_id: int) -> bool:
-    if not CHECK_SUBSCRIPTION:
-        return True
-    try:
-        chat_member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
-        return chat_member.status in ['member', 'administrator', 'creator']
-    except:
-        return False
+    return True  # ВРЕМЕННО ОТКЛЮЧАЕМ
 
 def format_application(app):
     return f"""
@@ -245,40 +193,66 @@ def format_application(app):
 📈 <b>Как поднимал фейм:</b> {app[11]}
 👥 <b>Знакомства:</b> {app[12]}
 
-📝 <b>Заметка админа:</b> {app[16] or 'Нет'}
-
 ⏰ <b>Дата:</b> {app[13]}
 """
 
-# ==================== ОСНОВНЫЕ ОБРАБОТЧИКИ ====================
+# ==================== ОБРАБОТЧИКИ ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if not await check_subscription(context.bot, user_id):
-        await update.message.reply_text(f"❌ <b>Подпишись на канал!</b>\n\n👉 <a href='{CHANNEL_LINK}'>ПОДПИСАТЬСЯ</a>\n\nПосле подписки нажми /start", parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+        await update.message.reply_text(f"❌ <b>Подпишись на канал!</b>\n\n👉 <a href='{CHANNEL_LINK}'>ПОДПИСАТЬСЯ</a>", parse_mode=ParseMode.HTML)
         return
     
-    if user_id == OWNER_ID:
-        await update.message.reply_text("👑 <b>Добро пожаловать, Владелец!</b>", parse_mode=ParseMode.HTML, reply_markup=get_owner_keyboard())
-    elif user_id in ADMINS:
-        await update.message.reply_text("🛡️ <b>Добро пожаловать, Админ!</b>", parse_mode=ParseMode.HTML, reply_markup=get_admin_keyboard())
-    else:
-        await update.message.reply_text("✨ <b>Добро пожаловать в Fame List Bot!</b>", parse_mode=ParseMode.HTML, reply_markup=get_user_keyboard())
+    # ВСЕМ ПОЛЬЗОВАТЕЛЯМ - ОДИНАКОВЫЕ КНОПКИ
+    kb = get_user_keyboard()
+    await update.message.reply_text(
+        "✨ <b>Добро пожаловать в Fame List Bot!</b> ✨\n\n"
+        "📝 <b>Отправить заявку</b> - заполнить анкету\n"
+        "📋 <b>Правила</b> - ознакомиться с правилами\n"
+        "⚠️ <b>Пожаловаться</b> - сообщить о нарушителе\n"
+        "👥 <b>Модерация</b> - информация о модераторах\n\n"
+        "Нажми на кнопку ниже чтобы начать 👇",
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb
+    )
 
 async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📜 <b>ПРАВИЛА ФЕЙМ-ЛИСТА</b>\n\n1️⃣ Заполняй анкету честно\n2️⃣ Без оскорблений\n3️⃣ Без спама\n4️⃣ За скам - бан\n5️⃣ Решение модераторов окончательное", parse_mode=ParseMode.HTML)
+    await update.message.reply_text(
+        "📜 <b>ПРАВИЛА ФЕЙМ-ЛИСТА</b>\n\n"
+        "1️⃣ Заполняй анкету честно и полностью\n"
+        "2️⃣ Без оскорблений и токсичности\n"
+        "3️⃣ Без спама и рекламы\n"
+        "4️⃣ За скам - моментальный бан\n"
+        "5️⃣ Решение модераторов окончательное\n\n"
+        "⚠️ Нарушение = блокировка!",
+        parse_mode=ParseMode.HTML
+    )
 
 async def moderation_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👥 <b>МОДЕРАЦИЯ</b>\n\nМодераторы проверяют заявки 24-48 часов.\n\nПо вопросам: @ваш_чат", parse_mode=ParseMode.HTML)
+    await update.message.reply_text(
+        "👥 <b>МОДЕРАЦИЯ</b>\n\n"
+        "Модераторы проверяют заявки в течение 24-48 часов.\n\n"
+        "Стать модератором можно после 3 месяцев активного участия.\n\n"
+        "По вопросам: @ваш_чат",
+        parse_mode=ParseMode.HTML
+    )
 
-# ==================== ПОДАЧА ЗАЯВКИ ====================
+# ==================== ПОДАЧА ЗАЯВКИ (ВСЕ ПОЛЬЗОВАТЕЛИ) ====================
 async def start_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    
+    # Проверка на активную заявку
     for app in db.get_pending_applications():
         if app[1] == user_id:
-            await update.message.reply_text("❌ У вас уже есть активная заявка!")
+            await update.message.reply_text("❌ У вас уже есть активная заявка! Дождитесь решения модерации.")
             return
-    await update.message.reply_text("📝 Отправьте вашу <b>аву</b>:", parse_mode=ParseMode.HTML)
+    
+    await update.message.reply_text(
+        "📝 <b>Начинаем оформление заявки!</b>\n\n"
+        "Шаг 1 из 9: Отправьте ваше <b>ФОТО</b> (аватарку):",
+        parse_mode=ParseMode.HTML
+    )
     return APP_AVATAR
 
 async def app_avatar(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -286,51 +260,51 @@ async def app_avatar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Отправьте фото!")
         return APP_AVATAR
     context.user_data['avatar'] = update.message.photo[-1].file_id
-    await update.message.reply_text("✅ Введите <b>ник</b>:", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ Шаг 2 из 9: Введите ваш <b>НИКНЕЙМ</b>:", parse_mode=ParseMode.HTML)
     return APP_NICKNAME
 
 async def app_nickname(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['nickname'] = update.message.text
-    await update.message.reply_text("✅ Выберите <b>КАТЕГОРИЮ</b>:", parse_mode=ParseMode.HTML, reply_markup=get_categories_keyboard())
+    await update.message.reply_text("✅ Шаг 3 из 9: Выберите <b>КАТЕГОРИЮ</b>:", parse_mode=ParseMode.HTML, reply_markup=get_categories_keyboard())
     return APP_CATEGORY
 
 async def app_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     context.user_data['category'] = query.data.replace("cat_", "")
-    await query.edit_message_text(f"✅ Введите <b>проект</b> (обязательно):", parse_mode=ParseMode.HTML)
+    await query.edit_message_text(f"✅ Шаг 4 из 9: Введите название вашего <b>ПРОЕКТА</b>:", parse_mode=ParseMode.HTML)
     return APP_PROJECT
 
 async def app_project(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['project'] = update.message.text
-    await update.message.reply_text("✅ Ссылка на <b>чат</b> (или '-' для пропуска):", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ Шаг 5 из 9: Ссылка на <b>ЧАТ</b> (или '-' для пропуска):", parse_mode=ParseMode.HTML)
     return APP_CHAT
 
 async def app_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     context.user_data['chat'] = None if text == '-' else text
-    await update.message.reply_text("✅ <b>С какого года в км?:", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ Шаг 6 из 9: <b>С какого года в КМ?</b> (например: 2020):", parse_mode=ParseMode.HTML)
     return APP_KM_YEAR
 
 async def app_km_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['km_year'] = update.message.text
-    await update.message.reply_text("✅ <b>Участвовали в ВК или ДС КМ?</b>:", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ Шаг 7 из 9: <b>Участвовали в ВК или ДС КМ?</b>:", parse_mode=ParseMode.HTML)
     return APP_PARTICIPATED
 
 async def app_participated(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['participated'] = update.message.text
-    await update.message.reply_text("✅ <b>Почему хотите попасть?</b> (или '-'):", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ Шаг 8 из 9: <b>Почему хотите попасть?</b> (или '-'):", parse_mode=ParseMode.HTML)
     return APP_REASON
 
 async def app_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     context.user_data['reason'] = None if text == '-' else text
-    await update.message.reply_text("✅ <b>Как поднимали фейм?</b>:", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ Шаг 9 из 9: <b>Как поднимали фейм?</b>:", parse_mode=ParseMode.HTML)
     return APP_FAME_METHOD
 
 async def app_fame_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['fame_method'] = update.message.text
-    await update.message.reply_text("✅ <b>С кем знакомы и кто подтвердит?</b>:", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ <b>Финальный вопрос:</b> С кем знакомы и кто подтвердит?", parse_mode=ParseMode.HTML)
     return APP_ACQUAINTANCES
 
 async def app_acquaintances(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -343,18 +317,33 @@ async def app_acquaintances(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data.get('reason'), data['fame_method'], update.message.text
     )
     
-    await update.message.reply_text(f"✅ <b>Заявка #{app_id} отправлена!</b>\n\nОжидайте решения.", parse_mode=ParseMode.HTML, reply_markup=get_user_keyboard())
+    await update.message.reply_text(
+        f"✅ <b>Заявка #{app_id} успешно отправлена!</b>\n\n"
+        f"Модераторы рассмотрят её в ближайшее время.\n"
+        f"О результате уведомим в личные сообщения.\n\n"
+        f"Спасибо за интерес к фейм-листу! 🎉",
+        parse_mode=ParseMode.HTML,
+        reply_markup=get_user_keyboard()
+    )
     
+    # Уведомление админам
     for admin_id in ADMINS:
         try:
-            await context.bot.send_message(admin_id, f"🔔 Новая заявка #{app_id} от {data['nickname']}")
+            await context.bot.send_message(
+                admin_id, 
+                f"🔔 <b>НОВАЯ ЗАЯВКА #{app_id}</b>\n\n"
+                f"От: {data['nickname']}\n"
+                f"Категория: {data['category']}\n"
+                f"Проект: {data['project']}",
+                parse_mode=ParseMode.HTML
+            )
         except:
             pass
     
     context.user_data.clear()
     return ConversationHandler.END
 
-# ==================== ПРОСМОТР И МОДЕРАЦИЯ ЗАЯВОК ====================
+# ==================== АДМИН-ФУНКЦИИ ====================
 async def show_applications(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in ADMINS and user_id != OWNER_ID:
@@ -419,7 +408,12 @@ async def accept_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.update_application_status(app_id, 'accepted', user_id)
     
     try:
-        await context.bot.send_message(app[1], f"✅ <b>Заявка #{app_id} ПРИНЯТА!</b>\n\nДобро пожаловать!", parse_mode=ParseMode.HTML)
+        await context.bot.send_message(
+            app[1], 
+            f"✅ <b>Поздравляем! Заявка #{app_id} ПРИНЯТА!</b>\n\n"
+            f"Добро пожаловать в фейм-лист! 🎉",
+            parse_mode=ParseMode.HTML
+        )
     except:
         pass
     
@@ -448,42 +442,17 @@ async def reject_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.update_application_status(app_id, 'rejected', user_id)
     
     try:
-        await context.bot.send_message(app[1], f"❌ <b>Заявка #{app_id} ОТКЛОНЕНА</b>\n\nМожете подать новую через 14 дней.", parse_mode=ParseMode.HTML)
+        await context.bot.send_message(
+            app[1], 
+            f"❌ <b>Заявка #{app_id} ОТКЛОНЕНА</b>\n\n"
+            f"Вы можете подать новую заявку через 14 дней.",
+            parse_mode=ParseMode.HTML
+        )
     except:
         pass
     
     await query.edit_message_text(f"❌ Заявка #{app_id} ОТКЛОНЕНА!")
 
-# ==================== ДОПОЛНИТЬ ИНФОРМАЦИЮ ====================
-async def add_note_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = query.from_user.id
-    if user_id not in ADMINS and user_id != OWNER_ID:
-        await query.edit_message_text("⛔ Нет прав!")
-        return
-    
-    app_id = int(query.data.split("_")[2])
-    context.user_data['note_app_id'] = app_id
-    
-    await query.edit_message_text(f"📝 Введите заметку для заявки #{app_id}:", parse_mode=ParseMode.HTML)
-    return ADD_NOTE_STATE
-
-async def add_note_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    note = update.message.text
-    app_id = context.user_data.get('note_app_id')
-    
-    if not app_id:
-        await update.message.reply_text("❌ Ошибка!")
-        return ConversationHandler.END
-    
-    db.update_application_note(app_id, note)
-    await update.message.reply_text(f"✅ Заметка для заявки #{app_id} сохранена!", reply_markup=get_admin_keyboard())
-    context.user_data.clear()
-    return ConversationHandler.END
-
-# ==================== ИСТОРИЯ ====================
 async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != OWNER_ID:
@@ -501,42 +470,18 @@ async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
-# ==================== УПРАВЛЕНИЕ АДМИНАМИ ====================
-async def manage_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id != OWNER_ID:
-        await update.message.reply_text("⛔ Только для владельца!")
-        return
-    
-    admins = db.get_all_admins()
-    text = "👑 <b>Список админов:</b>\n\n"
-    for admin in admins:
-        text += f"• {admin}\n"
-    text += "\nОтправь ID пользователя, чтобы добавить админа:"
-    
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
-    return ADD_ADMIN_STATE
-
-async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        admin_id = int(update.message.text)
-        db.add_admin(admin_id)
-        ADMINS.append(admin_id)
-        await update.message.reply_text(f"✅ Админ {admin_id} добавлен!", reply_markup=get_owner_keyboard())
-    except:
-        await update.message.reply_text("❌ Неверный ID!")
-    
-    context.user_data.clear()
-    return ConversationHandler.END
-
 # ==================== ЖАЛОБЫ ====================
 async def handle_complaint(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⚠️ Укажите username нарушителя:")
+    await update.message.reply_text(
+        "⚠️ <b>Жалоба на скамера</b>\n\n"
+        "Укажите username или ID нарушителя:",
+        parse_mode=ParseMode.HTML
+    )
     return COMPLAINT_USER
 
 async def complaint_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['complaint_on'] = update.message.text
-    await update.message.reply_text("📝 Причина жалобы:")
+    await update.message.reply_text("📝 Напишите причину жалобы:")
     return COMPLAINT_REASON
 
 async def complaint_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -547,38 +492,32 @@ async def complaint_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def complaint_evidence(update: Update, context: ContextTypes.DEFAULT_TYPE):
     evidence = update.message.text if update.message.text != '-' else None
     db.add_complaint(update.effective_user.id, 0, context.user_data['complaint_on'], context.user_data['complaint_reason'], evidence)
-    await update.message.reply_text("✅ Жалоба отправлена!", reply_markup=get_user_keyboard())
+    await update.message.reply_text("✅ Жалоба отправлена модераторам!", reply_markup=get_user_keyboard())
+    
+    for admin_id in ADMINS:
+        try:
+            await context.bot.send_message(admin_id, f"⚠️ Новая жалоба\nНа: {context.user_data['complaint_on']}\nПричина: {context.user_data['complaint_reason']}")
+        except:
+            pass
+    
     context.user_data.clear()
     return ConversationHandler.END
 
-# ==================== ВСПОМОГАТЕЛЬНЫЕ ====================
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    user_id = update.effective_user.id
-    if user_id == OWNER_ID:
-        kb = get_owner_keyboard()
-    elif user_id in ADMINS:
-        kb = get_admin_keyboard()
-    else:
-        kb = get_user_keyboard()
-    await update.message.reply_text("❌ Отменено.", reply_markup=kb)
+    await update.message.reply_text("❌ Действие отменено.", reply_markup=get_user_keyboard())
     return ConversationHandler.END
 
 async def back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_id = query.from_user.id
-    if user_id == OWNER_ID:
-        kb = get_owner_keyboard()
-    elif user_id in ADMINS:
-        kb = get_admin_keyboard()
-    else:
-        kb = get_user_keyboard()
-    await query.edit_message_text("Главное меню:", reply_markup=kb)
+    await query.edit_message_text("Главное меню:", reply_markup=get_user_keyboard())
 
 # ==================== MAIN ====================
 def main():
     print("🚀 ЗАПУСК БОТА...")
+    print("✅ Бот доступен для ВСЕХ пользователей")
+    print("✅ Кнопка 'Отправить заявку' видна всем")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
@@ -586,14 +525,13 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("cancel", cancel))
     
-    # Кнопки
+    # Кнопки меню
     app.add_handler(MessageHandler(filters.Text("📋 Правила"), rules))
     app.add_handler(MessageHandler(filters.Text("👥 Модерация"), moderation_info))
     app.add_handler(MessageHandler(filters.Text("📊 Заявки"), show_applications))
     app.add_handler(MessageHandler(filters.Text("📜 История"), show_history))
-    app.add_handler(MessageHandler(filters.Text("👑 Управление админами"), manage_admins))
     
-    # Заявка
+    # Подача заявки (ДЛЯ ВСЕХ)
     app.add_handler(ConversationHandler(
         entry_points=[MessageHandler(filters.Text("📝 Отправить заявку"), start_app)],
         states={
@@ -622,27 +560,13 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     ))
     
-    # Дополнить информацию
-    app.add_handler(ConversationHandler(
-        entry_points=[CallbackQueryHandler(add_note_start, pattern="^add_note_")],
-        states={ADD_NOTE_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_note_save)]},
-        fallbacks=[CommandHandler("cancel", cancel)],
-    ))
-    
-    # Управление админами
-    app.add_handler(ConversationHandler(
-        entry_points=[MessageHandler(filters.Text("👑 Управление админами"), manage_admins)],
-        states={ADD_ADMIN_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_admin)]},
-        fallbacks=[CommandHandler("cancel", cancel)],
-    ))
-    
     # Callbacks
     app.add_handler(CallbackQueryHandler(view_application, pattern="^view_"))
     app.add_handler(CallbackQueryHandler(accept_app, pattern="^accept_"))
     app.add_handler(CallbackQueryHandler(reject_app, pattern="^reject_"))
     app.add_handler(CallbackQueryHandler(back_to_menu, pattern="^back_to_menu$"))
     
-    print("✅ Бот запущен!")
+    print("✅ Бот успешно запущен!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
