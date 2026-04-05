@@ -278,7 +278,7 @@ async def start_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if app[1] == user_id:
             await update.message.reply_text("❌ У вас уже есть активная заявка!")
             return
-    await update.message.reply_text("📝 Отправьте ваше <b>ФОТО</b>:", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("📝 Отправьте вашу <b>аву</b>:", parse_mode=ParseMode.HTML)
     return APP_AVATAR
 
 async def app_avatar(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -286,7 +286,7 @@ async def app_avatar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Отправьте фото!")
         return APP_AVATAR
     context.user_data['avatar'] = update.message.photo[-1].file_id
-    await update.message.reply_text("✅ Введите <b>НИКНЕЙМ</b>:", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ Введите <b>ник</b>:", parse_mode=ParseMode.HTML)
     return APP_NICKNAME
 
 async def app_nickname(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -298,18 +298,18 @@ async def app_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     context.user_data['category'] = query.data.replace("cat_", "")
-    await query.edit_message_text(f"✅ Введите <b>ПРОЕКТ</b> (обязательно):", parse_mode=ParseMode.HTML)
+    await query.edit_message_text(f"✅ Введите <b>проект</b> (обязательно):", parse_mode=ParseMode.HTML)
     return APP_PROJECT
 
 async def app_project(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['project'] = update.message.text
-    await update.message.reply_text("✅ Ссылка на <b>ЧАТ</b> (или '-' для пропуска):", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ Ссылка на <b>чат</b> (или '-' для пропуска):", parse_mode=ParseMode.HTML)
     return APP_CHAT
 
 async def app_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     context.user_data['chat'] = None if text == '-' else text
-    await update.message.reply_text("✅ <b>С какого года в КМ?</b> (например: 2020):", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ <b>С какого года в км?:", parse_mode=ParseMode.HTML)
     return APP_KM_YEAR
 
 async def app_km_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
