@@ -275,20 +275,20 @@ async def start_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if app[1] == user_id:
             await update.message.reply_text("❌ У вас уже есть активная заявка!")
             return
-    await update.message.reply_text("📝 Отправьте ФОТО:")
+    await update.message.reply_text("📝 Отправьте аву которую хотите видеть на сайте:")
     return APP_AVATAR
 
 async def app_avatar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.photo:
-        await update.message.reply_text("❌ Отправьте фото!")
+        await update.message.reply_text("❌ Отправьте аву которую хотите видеть на сайте!")
         return APP_AVATAR
     context.user_data['avatar'] = update.message.photo[-1].file_id
-    await update.message.reply_text("✅ Введите НИКНЕЙМ:")
+    await update.message.reply_text("✅ Введите ник:")
     return APP_NICKNAME
 
 async def app_nickname(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['nickname'] = update.message.text
-    await update.message.reply_text("✅ Выберите КАТЕГОРИЮ:", reply_markup=get_categories_keyboard())
+    await update.message.reply_text("✅ Выберите категорию:", reply_markup=get_categories_keyboard())
     return APP_CATEGORY
 
 async def app_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -306,7 +306,7 @@ async def app_project(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def app_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     context.user_data['chat'] = None if text == '-' else text
-    await update.message.reply_text("✅ Год в КМ?")
+    await update.message.reply_text("✅ с какого года в КМ?")
     return APP_KM_YEAR
 
 async def app_km_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -327,7 +327,7 @@ async def app_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def app_fame_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['fame_method'] = update.message.text
-    await update.message.reply_text("✅ С кем знакомы и кто подтвердит?")
+    await update.message.reply_text("✅ С кем знакомы и кто может из них подтвердит?")
     return APP_ACQUAINTANCES
 
 async def app_acquaintances(update: Update, context: ContextTypes.DEFAULT_TYPE):
