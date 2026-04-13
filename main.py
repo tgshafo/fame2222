@@ -266,7 +266,7 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📜 ПРАВИЛА:\n1. Заполняй анкету честно\n2. Без оскорблений\n3. Без спама\n4. За скам - бан")
 
 async def moderation_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👥 Модераторы проверяют заявки 24-48 часов")
+    await update.message.reply_text("👥 Модераторы проверяют заявки 48-104 часов")
 
 # ==================== ПОДАЧА ЗАЯВКИ ====================
 async def start_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -295,18 +295,18 @@ async def app_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     context.user_data['category'] = query.data.replace("cat_", "")
-    await query.edit_message_text("✅ Введите ПРОЕКТ:")
+    await query.edit_message_text("✅ Введите ссылку на ваш проект:")
     return APP_PROJECT
 
 async def app_project(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['project'] = update.message.text
-    await update.message.reply_text("✅ Ссылка на ЧАТ (или '-'):")
+    await update.message.reply_text("✅ Ссылка на ваш чат (или '-'):")
     return APP_CHAT
 
 async def app_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     context.user_data['chat'] = None if text == '-' else text
-    await update.message.reply_text("✅ с какого года в КМ?")
+    await update.message.reply_text("✅ с какого года вы в КМ?")
     return APP_KM_YEAR
 
 async def app_km_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -316,7 +316,7 @@ async def app_km_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def app_participated(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['participated'] = update.message.text
-    await update.message.reply_text("✅ Почему хотите попасть? (или '-'):")
+    await update.message.reply_text("✅ Почему хотите попасть к нам? (или '-'):")
     return APP_REASON
 
 async def app_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
