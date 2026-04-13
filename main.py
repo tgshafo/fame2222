@@ -8,8 +8,8 @@ from telegram.constants import ParseMode
 # ==================== КОНФИГУРАЦИЯ ====================
 BOT_TOKEN = "7283183825:AAFwZWypGCdizQ27JvmKWKiw3ZsJhegJRKs"
 OWNER_ID = 287265398
-CHANNEL_ID = -1003658136195
-CHANNEL_LINK = "https://t.me/+hgYBTlhzZOZmNDY0"
+CHANNEL_ID = -1003911175144
+CHANNEL_LINK = "https://t.me/mirokfame"
 CHECK_SUBSCRIPTION = True
 ADMINS = [287265398]
 CATEGORIES = ['Медийка', 'Высокий фейм', 'Средний фейм', 'Низкий фейм', 'Кодер']
